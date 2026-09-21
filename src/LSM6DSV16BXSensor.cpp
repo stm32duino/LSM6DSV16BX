@@ -1,9 +1,9 @@
 /**
  ******************************************************************************
- * @file    LSM6DSV16BXSensor.h
+ * @file    LSM6DSV16BXSensor.cpp
  * @author  STMicroelectronics
- * @version V1.0.0
- * @date    November 2024
+ * @version V1.1.0
+ * @date    September 2026
  * @brief   Abstract Class of a LSM6DSV16BX inertial measurement sensor.
  ******************************************************************************
  * @attention
@@ -51,6 +51,10 @@ LSM6DSV16BXSensor::LSM6DSV16BXSensor(TwoWire *i2c, uint8_t address) : dev_i2c(i2
   reg_ctx.mdelay = LSM6DSV16BX_sleep;
   reg_ctx.handle = (void *)this;
   dev_spi = NULL;
+#if defined(I3C_SUPPORTED)
+  dev_i3c = NULL;
+#endif
+  bus_type = LSM6DSV16BX_I2C_BUS;
   acc_is_enabled = 0L;
   //gyro_is_enabled = 0L;
 }
@@ -68,30 +72,79 @@ LSM6DSV16BXSensor::LSM6DSV16BXSensor(SPIClass *spi, int cs_pin, uint32_t spi_spe
   reg_ctx.mdelay = LSM6DSV16BX_sleep;
   reg_ctx.handle = (void *)this;
   dev_i2c = NULL;
+#if defined(I3C_SUPPORTED)
+  dev_i3c = NULL;
+#endif
+  bus_type = LSM6DSV16BX_SPI_4WIRES_BUS;
   acc_is_enabled = 0L;
   //gyro_is_enabled = 0L;
 }
+
+#if defined(I3C_SUPPORTED)
+/** Constructor
+ * @param i3c object of an helper class which handles the I3C peripheral
+ * @param static_addr7 the I3C static address of the component's instance
+ */
+LSM6DSV16BXSensor::LSM6DSV16BXSensor(I3CBus *i3c, uint8_t static_addr7) : dev_i3c(i3c), address(static_addr7), i3c_static7(static_addr7), i3c_dyn7(0)
+{
+  reg_ctx.write_reg = LSM6DSV16BX_io_write;
+  reg_ctx.read_reg = LSM6DSV16BX_io_read;
+  reg_ctx.mdelay = LSM6DSV16BX_sleep;
+  reg_ctx.handle = (void *)this;
+  dev_i2c = NULL;
+  dev_spi = NULL;
+  bus_type = LSM6DSV16BX_I3C_BUS;
+  acc_is_enabled = 0L;
+  //gyro_is_enabled = 0L;
+}
+
+uint8_t LSM6DSV16BXSensor::getStaticAddress() const
+{
+  return i3c_static7;
+}
+
+uint8_t LSM6DSV16BXSensor::getDynAddress() const
+{
+  return i3c_dyn7;
+}
+#endif
 
 /**
  * @brief  Initialize the LSM6DSV16BX sensor
  * @retval 0 in case of success, an error code otherwise
  */
-LSM6DSV16BXStatusTypeDef LSM6DSV16BXSensor::begin()
+LSM6DSV16BXStatusTypeDef LSM6DSV16BXSensor::begin(uint8_t new_address)
 {
   int32_t fs = 0;
-  lsm6dsv16bx_if_cfg_t if_cfg;
 
-  // Read the current configuration of the IF_CFG register
-  if (lsm6dsv16bx_read_reg(&reg_ctx, LSM6DSV16BX_IF_CFG, (uint8_t *)&if_cfg, 1) != LSM6DSV16BX_OK) {
-    return LSM6DSV16BX_ERROR;
-  }
+#if defined(I3C_SUPPORTED)
+  if (dev_i3c) {
+    uint8_t id = 0;
+    if (new_address < 0x08 || new_address > 0x77) {
+      return LSM6DSV16BX_ERROR;
+    }
+    address = new_address;
+    i3c_dyn7 = new_address;
+    if (ReadID(&id) != LSM6DSV16BX_OK || id != LSM6DSV16BX_ID) {
+      return LSM6DSV16BX_ERROR;
+    }
+  } else
+#endif
+  {
+    lsm6dsv16bx_if_cfg_t if_cfg;
 
-  // Disable the I3C interface by setting the ASF_CTRL bit to 1
-  if_cfg.asf_ctrl = 1;
+    // Read the current configuration of the IF_CFG register
+    if (lsm6dsv16bx_read_reg(&reg_ctx, LSM6DSV16BX_IF_CFG, (uint8_t *)&if_cfg, 1) != LSM6DSV16BX_OK) {
+      return LSM6DSV16BX_ERROR;
+    }
 
-  // Write the updated configuration back to the IF_CFG register
-  if (lsm6dsv16bx_write_reg(&reg_ctx, LSM6DSV16BX_IF_CFG, (uint8_t *)&if_cfg, 1) != LSM6DSV16BX_OK) {
-    return LSM6DSV16BX_ERROR;
+    // Disable the I3C interface by setting the ASF_CTRL bit to 1
+    if_cfg.asf_ctrl = 1;
+
+    // Write the updated configuration back to the IF_CFG register
+    if (lsm6dsv16bx_write_reg(&reg_ctx, LSM6DSV16BX_IF_CFG, (uint8_t *)&if_cfg, 1) != LSM6DSV16BX_OK) {
+      return LSM6DSV16BX_ERROR;
+    }
   }
 
   if (dev_spi) {
