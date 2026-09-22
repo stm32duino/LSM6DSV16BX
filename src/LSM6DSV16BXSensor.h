@@ -2,8 +2,8 @@
  ******************************************************************************
  * @file    LSM6DSV16BXSensor.h
  * @author  STMicroelectronics
- * @version V1.0.0
- * @date    November 2024
+ * @version V1.1.0
+ * @date    September 2026
  * @brief   Abstract Class of a LSM6DSV16BX inertial measurement sensor.
  ******************************************************************************
  * @attention
@@ -46,7 +46,25 @@
 #include "SPI.h"
 #include "lsm6dsv16bx_reg.h"
 
+#if (defined(I3C1_BASE) || defined(I3C2_BASE)) && !defined(I3C_SUPPORTED)
+  #define I3C_SUPPORTED
+  #include "I3C.h"
+#endif
+
 /* Defines -------------------------------------------------------------------*/
+
+#define LSM6DSV16BX_I2C_BUS                      0U
+#define LSM6DSV16BX_SPI_4WIRES_BUS               1U
+#define LSM6DSV16BX_SPI_3WIRES_BUS               2U
+#define LSM6DSV16BX_I3C_BUS                      3U
+
+#if defined(I3C_SUPPORTED)
+  #define LSM6DSV16BX_I3C_ADD_L                  0x6AU
+  #define LSM6DSV16BX_I3C_ADD_H                  0x6BU
+
+  static const uint64_t LSM6DSV16BX_I3C_PID_L = 0x02080071120BULL;
+  static const uint64_t LSM6DSV16BX_I3C_PID_H = 0x02080071920BULL;
+#endif
 
 #define LSM6DSV16BX_ACC_SENSITIVITY_FS_2G   0.061f
 #define LSM6DSV16BX_ACC_SENSITIVITY_FS_4G   0.122f
@@ -146,10 +164,18 @@ class LSM6DSV16BXSensor {
   public:
     LSM6DSV16BXSensor(TwoWire *i2c, uint8_t address = LSM6DSV16BX_I2C_ADD_H);
     LSM6DSV16BXSensor(SPIClass *spi, int cs_pin, uint32_t spi_speed = 2000000);
+#if defined(I3C_SUPPORTED)
+    LSM6DSV16BXSensor(I3CBus *i3c, uint8_t static_addr7 = 0);
+#endif
 
-    LSM6DSV16BXStatusTypeDef begin();
+    LSM6DSV16BXStatusTypeDef begin(uint8_t new_address = 0);
     LSM6DSV16BXStatusTypeDef end();
     LSM6DSV16BXStatusTypeDef ReadID(uint8_t *Id);
+
+#if defined(I3C_SUPPORTED)
+    uint8_t getStaticAddress() const;
+    uint8_t getDynAddress() const;
+#endif
 
     LSM6DSV16BXStatusTypeDef Enable_X();
     LSM6DSV16BXStatusTypeDef Disable_X();
@@ -341,6 +367,14 @@ class LSM6DSV16BXSensor {
         return 0;
       }
 
+#if defined(I3C_SUPPORTED)
+      if (dev_i3c) {
+        if (dev_i3c->readRegBuffer(address, RegisterAddr, pBuffer, NumByteToRead) == 0) {
+          return 0;
+        }
+      }
+#endif
+
       return 1;
     }
 
@@ -385,6 +419,14 @@ class LSM6DSV16BXSensor {
         return 0;
       }
 
+#if defined(I3C_SUPPORTED)
+      if (dev_i3c) {
+        if (dev_i3c->writeRegBuffer(address, RegisterAddr, (uint8_t *)pBuffer, NumByteToWrite) == 0) {
+          return 0;
+        }
+      }
+#endif
+
       return 1;
     }
 
@@ -406,11 +448,20 @@ class LSM6DSV16BXSensor {
     /* Helper classes. */
     TwoWire *dev_i2c;
     SPIClass *dev_spi;
+#if defined(I3C_SUPPORTED)
+    I3CBus *dev_i3c;
+#endif
+
+    uint32_t bus_type; /*0 means I2C, 1 means SPI 4-Wires, 2 means SPI-3-Wires, 3 means I3C */
 
     /* Configuration */
     uint8_t address;
     int cs_pin;
     uint32_t spi_speed;
+#if defined(I3C_SUPPORTED)
+    uint8_t i3c_static7;
+    uint8_t i3c_dyn7;
+#endif
 
     lsm6dsv16bx_xl_data_rate_t acc_odr;
     lsm6dsv16bx_gy_data_rate_t gyro_odr;
