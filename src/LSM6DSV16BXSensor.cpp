@@ -2254,7 +2254,7 @@ LSM6DSV16BXStatusTypeDef LSM6DSV16BXSensor::Enable_Wake_Up_Detection(LSM6DSV16BX
     return LSM6DSV16BX_ERROR;
   }
 
-  /* Set wake-up durantion */
+  /* Set wake-up duration */
   if (Set_Wake_Up_Duration(0) != LSM6DSV16BX_OK) {
     return LSM6DSV16BX_ERROR;
   }
@@ -2349,7 +2349,7 @@ LSM6DSV16BXStatusTypeDef LSM6DSV16BXSensor::Disable_Wake_Up_Detection()
     return LSM6DSV16BX_ERROR;
   }
 
-  /* Reset wake-up durantion */
+  /* Reset wake-up duration */
   if (Set_Wake_Up_Duration(0) != LSM6DSV16BX_OK) {
     return LSM6DSV16BX_ERROR;
   }
